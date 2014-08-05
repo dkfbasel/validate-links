@@ -1,16 +1,20 @@
 package main
 
 import (
+	"fmt"
+
+	"path/filepath"
+
 	"archive/zip"
 	"bytes"
-	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
+
 	"regexp"
 	"strings"
-	"net/http"
+
+	"github.com/franela/goreq"
+	"time"
 )
 
 // define some custom regular expressions to find hyperlinks in our word documents
@@ -21,8 +25,8 @@ var (
 
 // define a custom document structure
 type Document struct {
-	path       string
-	hyperlinks []string
+	path         string
+	hyperlinks   []string
 }
 
 // our main function
@@ -31,16 +35,25 @@ func main() {
 	// get a list of all files in the directories specified
 	wordDocuments := getAllWordDocumentPathsInDirectory(".")
 
+	invalidLinks := []string{}
+
 	// go through all word documents and extract their hyperlinks
-	for _, doc := range wordDocuments {
+	for _, document := range wordDocuments {
 
-		doc.findHyperlinks();
+		fmt.Println(document.path)
 
-		fmt.Println(doc.hyperlinks)
+		document.findHyperlinks()
 
+		for _, link := range document.hyperlinks {
+
+			if isHyperlinkWorking(link) == false {
+
+				invalidLinks = append(invalidLinks, link)
+				fmt.Println("- " + link)
+			}
+
+		}
 	}
-
-	isHyperlinkValid("test")
 
 }
 
@@ -131,7 +144,6 @@ func getFileContentAsString(filePath string) string {
 
 }
 
-
 func extractHyperlinks(fileContent string) []string {
 
 	// find all matching links (the url of the hyperlink is matched by a capture group)
@@ -153,14 +165,13 @@ func extractHyperlinks(fileContent string) []string {
 
 }
 
-
 func filterHyperlinks(hyperlinks []string) []string {
 
 	// regular expression to find microsoft links
 	var microsoft string = `http://office.microsoft.com`
 
 	// initialize an empty slice of strings
-	var filteredLinks = []string {}
+	var filteredLinks = []string{}
 
 	// check all links
 	for _, link := range hyperlinks {
@@ -170,7 +181,7 @@ func filterHyperlinks(hyperlinks []string) []string {
 		isEmpty := (link == "")
 
 		// include only non microsoft links
-		if (isMicrosoft == false && isEmpty == false) {
+		if isMicrosoft == false && isEmpty == false {
 			filteredLinks = append(filteredLinks, link)
 		}
 
@@ -180,16 +191,21 @@ func filterHyperlinks(hyperlinks []string) []string {
 
 }
 
-func isHyperlinkValid (url string) bool {
+func isHyperlinkWorking(link string) bool {
 
 	// issue a GET request to the specified url and wait for response
-	response, err := http.Get(url)
+	// set a timeout if there is no response
+	_, err := goreq.Request{
+		Uri:     link,
+		Timeout: 1500 * time.Millisecond,
+	}.Do()
 
-	if (err != nil) {
+	if err != nil {
+		// link was not found
 		return false
 	} else {
+		// link was found
 		return true
 	}
 
 }
-
