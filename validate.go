@@ -15,6 +15,9 @@ import (
 
 	"github.com/franela/goreq"
 	"time"
+
+	"html/template"
+
 )
 
 // define some custom regular expressions to find hyperlinks in our word documents
@@ -25,8 +28,19 @@ var (
 
 // define a custom document structure
 type Document struct {
-	path         string
-	hyperlinks   []string
+	Path         string
+	Hyperlinks   []string
+}
+
+type Hyperlink struct {
+	url string
+	working bool
+}
+
+// create a report structure for our output
+type Report struct {
+	Documents []Document
+	InvalidLinks []string
 }
 
 // our main function
@@ -38,13 +52,13 @@ func main() {
 	invalidLinks := []string{}
 
 	// go through all word documents and extract their hyperlinks
-	for _, document := range wordDocuments {
+	for index, _ := range wordDocuments {
 
-		fmt.Println(document.path)
+		fmt.Println(wordDocuments[index].Path)
 
-		document.findHyperlinks()
+		wordDocuments[index].findHyperlinks()
 
-		for _, link := range document.hyperlinks {
+		for _, link := range wordDocuments[index].Hyperlinks {
 
 			if isHyperlinkWorking(link) == false {
 
@@ -54,6 +68,10 @@ func main() {
 
 		}
 	}
+
+	// fmt.Println(wordDocuments)
+
+	createReport(&wordDocuments)
 
 }
 
@@ -71,7 +89,7 @@ func getAllWordDocumentPathsInDirectory(rootDirectory string) []Document {
 		if strings.HasSuffix(fileInfo.Name(), ".docx") {
 
 			// create a new document
-			file := Document{path: path}
+			file := Document{Path: path}
 
 			// append the document to the list of existing documents
 			wordFiles = append(wordFiles, file)
@@ -90,13 +108,13 @@ func getAllWordDocumentPathsInDirectory(rootDirectory string) []Document {
 func (doc *Document) findHyperlinks() bool {
 
 	// get file content
-	content := getFileContentAsString(doc.path)
+	content := getFileContentAsString(doc.Path)
 
 	// find all hyperlinks in the document (this will unfortunately also return some microsoft schema links)
 	matches := extractHyperlinks(content)
 
 	// store the hyperlinks in a the document reference
-	doc.hyperlinks = matches
+	doc.Hyperlinks = matches
 
 	// extraction of hyperlinks successfully completed
 	return true
@@ -206,6 +224,28 @@ func isHyperlinkWorking(link string) bool {
 	} else {
 		// link was found
 		return true
+	}
+
+}
+
+
+func createReport(documents *[]Document) {
+
+	file, _ := os.Create("report.html")
+	defer file.Close()
+
+	tmpl, err := template.ParseFiles("report.tpl")
+
+	if err != nil {
+		panic(err)
+
+	} else {
+
+		err = tmpl.ExecuteTemplate(file, "report.tpl", documents)
+
+		if err != nil {
+			fmt.Println("error while executing the template")
+		}
 	}
 
 }
