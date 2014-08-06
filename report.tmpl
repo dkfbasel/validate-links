@@ -161,62 +161,42 @@
 			<h1>Untersuchtes Verzeichnis</h1>
 
 			<ul class="directories">
-				
-				<li><a href="File:////Users/tiki/gocode/src/github.com/tikiatua/go_spidy">/Users/tiki/gocode/src/github.com/tikiatua/go_spidy</a></li>
-				
+				{{range .Directories}}
+				<li><a href="File:///{{absolutePath .}}">{{absolutePath .}}</a></li>
+				{{end}}
 			</ul>
 
 			<h1>Resultat der Link-Validierung</h1>
 
 
-			
+			{{if .ResultOfValidation}}
+				<div class="result valid">
+					Alle Dateien enthalten nur gültige Links
+				</div>
+			{{else}}
 				<div class="result invalid">
 					Leider gibt es Dateien mit ungültigen Links
 				</div>
-			
+			{{end}}
 
 			<ul class="documents">
-				
+				{{range .Documents}}
 				<li class="result">
-					<h2 class="valid"><a href="File:///Users/tiki/gocode/src/github.com/tikiatua/go_spidy/docs/Leitfaden_Studieninformation_d%20Kopie%202.docx">docs/Leitfaden_Studieninformation_d Kopie 2.docx</a></h2>
+					<h2 class="{{if .IsValid}}valid{{else}}invalid{{end}}"><a href="File://{{absolutePath .Path}}">{{.Path}}</a></h2>
 
 					<ul class="links">
-						
-						<li class="result valid"><a href="http://www.ceb-institute.org">http://www.ceb-institute.org</a></li>
-						
+						{{range .Hyperlinks}}
+						<li class="result {{if .IsWorking}}valid{{else}}invalid{{end}}"><a href="{{.Url}}">{{.Url}}</a></li>
+						{{end}}
 					</ul>
 				</li>
-				
-				<li class="result">
-					<h2 class="invalid"><a href="File:///Users/tiki/gocode/src/github.com/tikiatua/go_spidy/docs/Leitfaden_Studieninformation_d%20Kopie.docx">docs/Leitfaden_Studieninformation_d Kopie.docx</a></h2>
-
-					<ul class="links">
-						
-						<li class="result invalid"><a href="http://diesenlinkgibtesdochgarnichthier.com">http://diesenlinkgibtesdochgarnichthier.com</a></li>
-						
-						<li class="result valid"><a href="http://www.ceb-institute.org">http://www.ceb-institute.org</a></li>
-						
-					</ul>
-				</li>
-				
-				<li class="result">
-					<h2 class="invalid"><a href="File:///Users/tiki/gocode/src/github.com/tikiatua/go_spidy/docs/Leitfaden_Studieninformation_d.docx">docs/Leitfaden_Studieninformation_d.docx</a></h2>
-
-					<ul class="links">
-						
-						<li class="result invalid"><a href="http://diesenlinkgibtesdochgarnichthier.com">http://diesenlinkgibtesdochgarnichthier.com</a></li>
-						
-						<li class="result valid"><a href="http://www.ceb-institute.org">http://www.ceb-institute.org</a></li>
-						
-					</ul>
-				</li>
-				
+				{{end}}
 			</ul>
 
 		</div>
 
 		<div class="info">
-			<p class="time">Ausgeführt am: 2014-08-06 10:25:37</p>
+			<p class="time">Ausgeführt am: {{.Date}}</p>
 			<p class="author">&copy;&nbsp;2014, Department Klinische Forschung, Universitätsspital Basel</p>
 		</div>
 	</body>
