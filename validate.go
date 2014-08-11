@@ -16,14 +16,25 @@ import (
 	"github.com/franela/goreq"
 	"time"
 
-	"html/template"
 	"github.com/skratchdot/open-golang/open"
+	"html/template"
 	"log"
 )
 
-// define some custom regular expressions to find hyperlinks in our word documents
-// we define this globally to avoid recompilation
-var hyperlinkExpression = regexp.MustCompile(`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="(?P<url>.+?)"`)
+// define some custom regular expressions
+var matchers map[string]*regexp.Regexp
+
+func initializeMatchers() {
+
+	// initialize our map of matchers
+	matchers = make(map[string]*regexp.Regexp)
+
+	// add our matching expressions
+	matchers[".docx"] = regexp.MustCompile(`word/_rels/document.xml.rels`)
+	matchers[".pptx"] = regexp.MustCompile(`ppt/slides/_rels/.*.xml.rels`)
+	matchers["hyperlink"] = regexp.MustCompile(`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="(?P<url>.+?)"`)
+	matchers["microsoft"] = regexp.MustCompile(`http://office.microsoft.com`)
+}
 
 // we define the name of our report
 var reportName string = "report"
@@ -31,13 +42,14 @@ var reportName string = "report"
 // define a custom document structure
 type Document struct {
 	Path       string
+	Type       string
 	IsValid    bool
 	Hyperlinks []Hyperlink
 }
 
 // define a custom hyperlink structure
 type Hyperlink struct {
-	Url     string
+	Url       string
 	IsWorking bool
 }
 
@@ -47,11 +59,14 @@ type Report struct {
 	Directories        []string
 	Documents          *[]Document
 	InvalidHyperlinks  []Hyperlink
-	Date string
+	Date               string
 }
 
 // our main function
 func main() {
+
+	// initialize our regular expressions
+	initializeMatchers()
 
 	// we are only interested in the current directory
 	directories := []string{"."}
@@ -61,35 +76,35 @@ func main() {
 	currentTime = currentTime[:19]
 
 	// get a list of all files in the directories specified
-	wordDocuments := getDocxFilesInDirectory(".")
+	documents := getFilesInDirectory(".")
 
 	// initialize our report structure
 	report := Report{
 		Directories: directories,
-		Documents: &wordDocuments,
-		Date: currentTime,
+		Documents:   &documents,
+		Date:        currentTime,
 	}
 
 	// go through all word documents and extract their hyperlinks
-	for index := range wordDocuments {
+	for index := range documents {
 
 		// set word document validity initially to valid
-		wordDocuments[index].IsValid = true;
+		documents[index].IsValid = true
 
-		// get hyperlinks from the word file
-		hyperlinks := extractHyperlinksFromDocxFile(wordDocuments[index].Path)
+		// get hyperlinks from the file
+		hyperlinks := extractHyperlinkFromDocument(documents[index])
 
 		// iterate through all links
 		for _, link := range hyperlinks {
 
 			link.IsWorking = isHyperlinkWorking(link)
 
-			wordDocuments[index].Hyperlinks = append(wordDocuments[index].Hyperlinks, link)
+			documents[index].Hyperlinks = append(documents[index].Hyperlinks, link)
 
 			if link.IsWorking == false {
 
 				// word document is not valid
-				wordDocuments[index].IsValid = false
+				documents[index].IsValid = false
 
 				// remember our invalid hyperlinks
 				report.InvalidHyperlinks = append(report.InvalidHyperlinks, link)
@@ -108,23 +123,23 @@ func main() {
 }
 
 // get paths for all word documents in the specified directories
-func getDocxFilesInDirectory(rootDirectory string) []Document {
+func getFilesInDirectory(rootDirectory string) []Document {
 
 	// initialize a new slice of documents
-	wordFiles := []Document{}
+	files := []Document{}
 
 	// walk recursively through our directory
 	filepath.Walk(rootDirectory, func(path string, fileInfo os.FileInfo, err error) error {
 
-		// fmt.Println(strings.HasSuffix(f.Name, ".docx")
+		var fileName string = fileInfo.Name()
 
-		if strings.HasSuffix(fileInfo.Name(), ".docx") {
+		if strings.HasSuffix(fileName, ".docx") || strings.HasSuffix(fileName, ".pptx") {
 
-			// create a new document
-			file := Document{Path: path}
+			// create a new document with the corresponding type and path
+			file := Document{Path: path, Type: filepath.Ext(fileName)}
 
 			// append the document to the list of existing documents
-			wordFiles = append(wordFiles, file)
+			files = append(files, file)
 		}
 
 		return nil
@@ -132,15 +147,19 @@ func getDocxFilesInDirectory(rootDirectory string) []Document {
 	})
 
 	// return all documents found
-	return wordFiles
+	return files
 
 }
 
 // add a method to our document to extract all hyperlinks
-func extractHyperlinksFromDocxFile(filePath string) []Hyperlink {
+func extractHyperlinkFromDocument(document Document) []Hyperlink {
 
 	// get file content
-	content := getLinkFileContent(filePath)
+	content := getLinkFileContent(document)
+
+	if (document.Type == ".pptx") {
+		fmt.Println(content)
+	}
 
 	// find all hyperlinks in the document
 	matches := extractHyperlinksFromContent(content)
@@ -150,23 +169,23 @@ func extractHyperlinksFromDocxFile(filePath string) []Hyperlink {
 
 }
 
-func getLinkFileContent(filePath string) string {
+func getLinkFileContent(document Document) string {
 
 	// open the docx file with our zip module (as it is basically a container)
-	docxContainer, err := zip.OpenReader(filePath)
+	documentContainer, err := zip.OpenReader(document.Path)
 	if err != nil {
 		fmt.Println("ERROR: could not open the file")
 	}
-	defer docxContainer.Close()
+	defer documentContainer.Close()
 
 	// initialize a new buffer to read the file contents
 	buffer := bytes.NewBuffer(nil)
 
 	// go through all content files
-	for _, file := range docxContainer.File {
+	for _, file := range documentContainer.File {
 
 		// links are stored in a special file (but without the name of the link)
-		if file.Name == "word/_rels/document.xml.rels" {
+		if matchers[document.Type].MatchString(file.Name) {
 
 			// open the file for reading
 			fileContentReader, err := file.Open()
@@ -194,7 +213,7 @@ func getLinkFileContent(filePath string) string {
 func extractHyperlinksFromContent(fileContent string) []Hyperlink {
 
 	// find all matching links (the url of the hyperlink is matched by a capture group)
-	matches := hyperlinkExpression.FindAllStringSubmatch(fileContent, -1)
+	matches := matchers["hyperlink"].FindAllStringSubmatch(fileContent, -1)
 
 	// initialize a new slice of strings of the same length as our matches
 	var links []Hyperlink = make([]Hyperlink, len(matches))
@@ -214,9 +233,6 @@ func extractHyperlinksFromContent(fileContent string) []Hyperlink {
 
 func filterHyperlinks(hyperlinks []Hyperlink) []Hyperlink {
 
-	// regular expression to find microsoft links
-	var microsoft string = `http://office.microsoft.com`
-
 	// initialize an empty slice of strings
 	var filteredLinks = []Hyperlink{}
 
@@ -224,7 +240,7 @@ func filterHyperlinks(hyperlinks []Hyperlink) []Hyperlink {
 	for _, link := range hyperlinks {
 
 		// exclude any microsoft links
-		isMicrosoft := strings.Contains(link.Url, microsoft)
+		isMicrosoft := matchers["microsoft"].MatchString(link.Url)
 		isEmpty := (link.Url == "")
 
 		// include only non microsoft links
@@ -257,7 +273,7 @@ func isHyperlinkWorking(link Hyperlink) bool {
 
 }
 
-func getAbsoluteFilePath (path string) string {
+func getAbsoluteFilePath(path string) string {
 
 	// check if the path is already absolute
 	if filepath.IsAbs(path) {
@@ -277,8 +293,6 @@ func getAbsoluteFilePath (path string) string {
 
 }
 
-
-
 // create a custom report
 func (report *Report) create() bool {
 
@@ -286,7 +300,7 @@ func (report *Report) create() bool {
 	file, _ := os.Create(reportName + ".html")
 	defer file.Close()
 
-	functionMap := template.FuncMap {
+	functionMap := template.FuncMap{
 		"absolutePath": getAbsoluteFilePath,
 	}
 
@@ -321,7 +335,6 @@ func (report *Report) open() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 
 }
 
@@ -528,4 +541,3 @@ Leider gibt es Dateien mit ungültigen Links
 </body>
 </html>
 `
-
