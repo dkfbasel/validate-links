@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 
@@ -64,6 +65,8 @@ type Report struct {
 // our main function
 func main() {
 
+	fmt.Println("Checking documents. Please wait ..")
+
 	// initialize our regular expressions
 	initializeMatchers()
 
@@ -86,6 +89,8 @@ func main() {
 
 	// go through all word documents and extract their hyperlinks
 	for index := range documents {
+
+		fmt.Println("- " + documents[index].Path)
 
 		// set word document validity initially to valid
 		documents[index].IsValid = true
@@ -118,6 +123,9 @@ func main() {
 
 	// open the report
 	report.open()
+
+	// inform user that process is finished
+	fmt.Println("Finished!")
 
 }
 
@@ -252,10 +260,10 @@ func filterHyperlinks(hyperlinks []Hyperlink) []Hyperlink {
 func isHyperlinkWorking(link Hyperlink) bool {
 
 	// issue a GET request to the specified url and wait for response
-	// set a timeout if there is no response
+	// set a timeout of 10 seconds if there is no response
 	_, err := goreq.Request{
 		Uri:     link.Url,
-		Timeout: 1500 * time.Millisecond,
+		Timeout: 10000 * time.Millisecond,
 	}.Do()
 
 	if err != nil {
@@ -303,7 +311,7 @@ func (report *Report) create() bool {
 	tmpl, err := template.New("report").Funcs(functionMap).Parse(reportTemplate)
 
 	if err != nil {
-		panic(err)
+		log.Println("Could not load template")
 		return false
 
 	} else {
@@ -312,7 +320,6 @@ func (report *Report) create() bool {
 		err = tmpl.ExecuteTemplate(file, "report", report)
 
 		if err != nil {
-			panic(err)
 			log.Println("Could not fill the template with report data")
 			return false
 		}
@@ -328,7 +335,7 @@ func (report *Report) open() {
 	err := open.Start(reportName + ".html")
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Could not open report")
 	}
 
 }
