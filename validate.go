@@ -516,7 +516,7 @@ Leider gibt es Dateien mit ungültigen Links
 <ul class="documents">
 {{range .Documents}}
 <li class="result">
-<h2 class="{{if .IsValid}}valid{{else}}invalid{{end}}"><a href="File://{{absolutePath .Path}}">{{.Path}}</a></h2>
+<h2 class="{{if .IsValid}}valid{{else}}invalid{{end}}"><a href="File:///{{absolutePath .Path}}">{{.Path}}</a></h2>
 
 <ul class="links">
 {{range .Hyperlinks}}
