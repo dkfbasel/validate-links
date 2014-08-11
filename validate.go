@@ -23,6 +23,7 @@ import (
 // define some custom regular expressions
 var matchers map[string]*regexp.Regexp
 
+// initialize our regular expresssions
 func initializeMatchers() {
 
 	// initialize our map of matchers
