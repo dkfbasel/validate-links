@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"os"
 
@@ -157,10 +156,6 @@ func extractHyperlinkFromDocument(document Document) []Hyperlink {
 	// get file content
 	content := getLinkFileContent(document)
 
-	if (document.Type == ".pptx") {
-		fmt.Println(content)
-	}
-
 	// find all hyperlinks in the document
 	matches := extractHyperlinksFromContent(content)
 
@@ -174,7 +169,7 @@ func getLinkFileContent(document Document) string {
 	// open the docx file with our zip module (as it is basically a container)
 	documentContainer, err := zip.OpenReader(document.Path)
 	if err != nil {
-		fmt.Println("ERROR: could not open the file")
+		log.Println("ERROR: could not open the file")
 	}
 	defer documentContainer.Close()
 
@@ -191,7 +186,7 @@ func getLinkFileContent(document Document) string {
 			fileContentReader, err := file.Open()
 
 			if err != nil {
-				fmt.Println("ERROR: coult not read file content")
+				log.Println("ERROR: coult not read file content")
 			}
 			defer fileContentReader.Close()
 
@@ -199,7 +194,7 @@ func getLinkFileContent(document Document) string {
 			io.Copy(buffer, fileContentReader)
 
 			if err != nil {
-				fmt.Println("could not write file contents to console")
+				log.Println("could not write file contents to console")
 			}
 
 		}
@@ -318,7 +313,7 @@ func (report *Report) create() bool {
 
 		if err != nil {
 			panic(err)
-			fmt.Println("Could not fill the template with report data")
+			log.Println("Could not fill the template with report data")
 			return false
 		}
 	}
