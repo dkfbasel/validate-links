@@ -11,7 +11,6 @@ import (
 	"bytes"
 
 	"regexp"
-	"strings"
 
 	"github.com/franela/goreq"
 	"time"
@@ -140,7 +139,9 @@ func getFilesInDirectory(rootDirectory string) []Document {
 
 		var fileName string = fileInfo.Name()
 
-		if strings.HasSuffix(fileName, ".docx") || strings.HasSuffix(fileName, ".pptx") {
+		var extension string = filepath.Ext(fileName)
+
+		if (extension == ".docx" || extension == ".pptx") {
 
 			// create a new document with the corresponding type and path
 			file := Document{Path: path, Type: filepath.Ext(fileName)}
