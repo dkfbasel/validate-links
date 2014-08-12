@@ -34,6 +34,7 @@ func initializeMatchers() {
 	matchers[".pptx"] = regexp.MustCompile(`ppt/slides/_rels/.*.xml.rels`)
 	matchers["hyperlink"] = regexp.MustCompile(`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="(?P<url>.+?)"`)
 	matchers["microsoft"] = regexp.MustCompile(`http://office.microsoft.com`)
+	matchers["mailto"] = regexp.MustCompile(`mailto:.*`)
 }
 
 // we define the name of our report
@@ -247,9 +248,10 @@ func filterHyperlinks(hyperlinks []Hyperlink) []Hyperlink {
 		// exclude any microsoft links
 		isMicrosoft := matchers["microsoft"].MatchString(link.Url)
 		isEmpty := (link.Url == "")
+		isMail := matchers["mailto"].MatchString(link.Url)
 
 		// include only non microsoft links
-		if isMicrosoft == false && isEmpty == false {
+		if isMicrosoft == false && isEmpty == false && isMail == false {
 			filteredLinks = append(filteredLinks, link)
 		}
 
