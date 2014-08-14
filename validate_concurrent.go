@@ -65,8 +65,11 @@ func main() {
 	// open the report
 	report.open()
 
+	// measure the time of computing
+	elapsed := time.Since(start)
+
 	// inform user that process is finished
-	fmt.Println("Finished!")
+	log.Println("Finished! (it took %s", elapsed)
 
 }
 
