@@ -93,12 +93,12 @@ func (link *Hyperlink) validate(wg *sync.WaitGroup) {
 	if err != nil {
 		// link was not found
 		link.IsWorking = false
-		wg.Done()
 	} else {
 		// link was found
 		link.IsWorking = true
-		wg.Done()
 	}
+
+	wg.Done()
 
 }
 
@@ -325,8 +325,9 @@ func getAbsoluteFilePath(path string) string {
 	// try to find the absolute path
 	absolutePath, err := filepath.Abs(path)
 
+	// we return the original path, if there was an error
+	// otherwise we return the absolute path
 	if err != nil {
-		// we return the original path, if there was an error
 		return path
 	} else {
 		return absolutePath
