@@ -366,6 +366,7 @@ func (report *Report) create() bool {
 
 }
 
+// open the report in the standard browser
 func (report *Report) open() {
 
 	// open the report in the default browser
@@ -376,3 +377,7 @@ func (report *Report) open() {
 	}
 
 }
+
+// we define the name of our report
+var reportName string = "report"
+
