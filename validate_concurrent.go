@@ -35,7 +35,8 @@ func main() {
 	// fmt.Println("create report")
 	// fmt.Println("be done")
 
-	// ------
+	// measure execution time
+	start := time.Now()
 
 	fmt.Println("Checking documents. Please wait ..")
 
