@@ -143,7 +143,7 @@ func getFilesInDirectory(rootDirectory string) []Document {
 
 		var extension string = filepath.Ext(fileName)
 
-		if (extension == ".docx" || extension == ".pptx") {
+		if extension == ".docx" || extension == ".pptx" {
 
 			// create a new document with the corresponding type and path
 			file := Document{Path: path, Type: filepath.Ext(fileName)}
