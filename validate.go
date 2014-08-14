@@ -66,6 +66,9 @@ type Report struct {
 // our main function
 func main() {
 
+	// measure execution time
+	start := time.Now()
+
 	fmt.Println("Checking documents. Please wait ..")
 
 	// initialize our regular expressions
@@ -121,6 +124,10 @@ func main() {
 
 	// create an html report with our data
 	report.create()
+
+	// measure the time of computing
+	elapsed := time.Since(start)
+	log.Printf("It took %s", elapsed)
 
 	// open the report
 	report.open()
