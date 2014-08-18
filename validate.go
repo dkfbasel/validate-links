@@ -104,7 +104,7 @@ func (link *Hyperlink) validate(wg *sync.WaitGroup) {
 	// set a timeout of 10 seconds if there is no response
 	_, err := goreq.Request{
 		Uri:     link.Url,
-		Timeout: 10000 * time.Millisecond,
+		Timeout: 15000 * time.Millisecond,
 	}.Do()
 
 	if err != nil {
