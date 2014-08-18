@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 
+	"sync"
+
 	"path/filepath"
 
 	"archive/zip"
@@ -20,50 +22,6 @@ import (
 	"log"
 )
 
-// define some custom regular expressions
-var matchers map[string]*regexp.Regexp
-
-// initialize our regular expresssions
-func initializeMatchers() {
-
-	// initialize our map of matchers
-	matchers = make(map[string]*regexp.Regexp)
-
-	// add our matching expressions
-	matchers[".docx"] = regexp.MustCompile(`word/_rels/document.xml.rels`)
-	matchers[".pptx"] = regexp.MustCompile(`ppt/slides/_rels/.*.xml.rels`)
-	matchers["hyperlink"] = regexp.MustCompile(`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="(?P<url>.+?)"`)
-	matchers["microsoft"] = regexp.MustCompile(`http://office.microsoft.com`)
-	matchers["mailto"] = regexp.MustCompile(`mailto:.*`)
-}
-
-// we define the name of our report
-var reportName string = "report"
-
-// define a custom document structure
-type Document struct {
-	Path       string
-	Type       string
-	IsValid    bool
-	Hyperlinks []Hyperlink
-}
-
-// define a custom hyperlink structure
-type Hyperlink struct {
-	Url       string
-	IsWorking bool
-}
-
-// define a custom report structre
-type Report struct {
-	ResultOfValidation bool
-	Directories        []string
-	Documents          *[]Document
-	InvalidHyperlinks  []Hyperlink
-	Date               string
-}
-
-// our main function
 func main() {
 
 	// measure execution time
@@ -82,69 +40,149 @@ func main() {
 	currentTime = currentTime[:19]
 
 	// get a list of all files in the directories specified
-	documents := getFilesInDirectory(".")
+	documents := getAndCheckFilesInDirectory(".")
+
+	var resultOfValidation bool = true
+
+	for index, _ := range documents {
+
+		// initialize document validity with true
+		documents[index].IsValid = true;
+
+		for _, link := range documents[index].Hyperlinks {
+
+			if link.IsWorking == false {
+				documents[index].IsValid = false
+				resultOfValidation = false
+			}
+		}
+	}
+
+	if resultOfValidation != false {
+		resultOfValidation = true
+	}
 
 	// initialize our report structure
 	report := Report{
+		ResultOfValidation: resultOfValidation,
 		Directories: directories,
-		Documents:   &documents,
+		Documents:   documents,
 		Date:        currentTime,
-	}
-
-	// go through all word documents and extract their hyperlinks
-	for index := range documents {
-
-		fmt.Println("- " + documents[index].Path)
-
-		// set word document validity initially to valid
-		documents[index].IsValid = true
-
-		// get hyperlinks from the file
-		hyperlinks := extractHyperlinkFromDocument(documents[index])
-
-		// iterate through all links
-		for _, link := range hyperlinks {
-
-			link.IsWorking = isHyperlinkWorking(link)
-
-			documents[index].Hyperlinks = append(documents[index].Hyperlinks, link)
-
-			if link.IsWorking == false {
-
-				// word document is not valid
-				documents[index].IsValid = false
-
-				// remember our invalid hyperlinks
-				report.InvalidHyperlinks = append(report.InvalidHyperlinks, link)
-
-			}
-
-		}
 	}
 
 	// create an html report with our data
 	report.create()
 
-	// measure the time of computing
-	elapsed := time.Since(start)
-	log.Printf("It took %s", elapsed)
-
 	// open the report
 	report.open()
 
+	// measure the time of computing
+	elapsed := time.Since(start)
+
 	// inform user that process is finished
-	fmt.Println("Finished!")
+	log.Println("Finished! (it took %s", elapsed)
 
 }
 
-// get paths for all word documents in the specified directories
-func getFilesInDirectory(rootDirectory string) []Document {
+// define a custom document structure
+type Document struct {
+	Path       string
+	Type       string
+	IsValid    bool
+	Hyperlinks []Hyperlink
+}
+
+// define a custom hyperlink structure
+type Hyperlink struct {
+	Url       string
+	IsWorking bool
+}
+
+func (link *Hyperlink) validate(wg *sync.WaitGroup) {
+
+	// issue a GET request to the specified url and wait for response
+	// set a timeout of 10 seconds if there is no response
+	_, err := goreq.Request{
+		Uri:     link.Url,
+		Timeout: 10000 * time.Millisecond,
+	}.Do()
+
+	if err != nil {
+		// link was not found
+		link.IsWorking = false
+	} else {
+		// link was found
+		link.IsWorking = true
+	}
+
+	wg.Done()
+
+}
+
+// define some custom regular expressions
+var matchers map[string]*regexp.Regexp
+
+// initialize our regular expresssions
+func initializeMatchers() {
+
+	// initialize our map of matchers
+	matchers = make(map[string]*regexp.Regexp)
+
+	// add our matching expressions
+	matchers[".docx"] = regexp.MustCompile(`word/_rels/document.xml.rels`)
+	matchers[".pptx"] = regexp.MustCompile(`ppt/slides/_rels/.*.xml.rels`)
+	matchers["hyperlink"] = regexp.MustCompile(`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="(?P<url>.+?)"`)
+	matchers["microsoft"] = regexp.MustCompile(`http://office.microsoft.com`)
+	matchers["mailto"] = regexp.MustCompile(`mailto:.*`)
+}
+
+func getAndCheckFilesInDirectory(rootDirectory string) []Document {
 
 	// initialize a new slice of documents
-	files := []Document{}
+	documents := []Document{}
 
-	// walk recursively through our directory
-	filepath.Walk(rootDirectory, func(path string, fileInfo os.FileInfo, err error) error {
+	var fileChannel chan Document = make(chan Document)
+
+	var wg sync.WaitGroup
+
+	// we have to wait until all file walking is done
+	wg.Add(1)
+
+	// walk recursively through our directory in a separate thread
+	// send each matching file into our file channel
+	go walkDirectory(rootDirectory, fileChannel, &wg)
+
+	// for each file we find, we get all links and validate them
+	for file := range fileChannel {
+
+		// remember to wait until the document is fully checked
+		var checkingHyperlinks sync.WaitGroup
+
+		checkingHyperlinks.Add(1)
+
+		// check hyperlinks of the document
+		go extractAndCheckHyperlinks(&file, &checkingHyperlinks)
+
+		// wait until all hyperlinks are checked
+		checkingHyperlinks.Wait()
+
+		documents = append(documents, file)
+
+	}
+
+	// we are finished with finding and checking all elements
+	wg.Wait()
+
+	fmt.Println("we are done with these files")
+
+	return documents
+
+}
+
+func walkDirectory(directory string, fileChannel chan Document, wg *sync.WaitGroup) {
+
+	// walk recursively through the directory
+	filepath.Walk(directory, func(path string, fileInfo os.FileInfo, err error) error {
 
 		var fileName string = fileInfo.Name()
 
@@ -152,26 +190,50 @@ func getFilesInDirectory(rootDirectory string) []Document {
 
 		if extension == ".docx" || extension == ".pptx" {
 
-			// create a new document with the corresponding type and path
+			// create a pointer to new document with the corresponding type and path
 			file := Document{Path: path, Type: filepath.Ext(fileName)}
 
-			// append the document to the list of existing documents
-			files = append(files, file)
+			// send the file to the channel
+			fileChannel <- file
+
 		}
 
+		// we are not expecting any errors (or not handling them at least)
 		return nil
 
 	})
 
-	// return all documents found
-	return files
+	// close our fileChannel (no longer needed)
+	close(fileChannel)
+
+	// we are done walking the filepath
+	wg.Done()
 
 }
 
-// add a method to our document to extract all hyperlinks
-func extractHyperlinkFromDocument(document Document) []Hyperlink {
+func extractAndCheckHyperlinks(file *Document, wg *sync.WaitGroup) {
 
-	// get file content
+	// get all hyperlinks from the document
+	file.Hyperlinks = extractHyperlinksFromDocument(*file)
+
+	// check all hyperlinks in a separate routine
+	for index, _ := range file.Hyperlinks {
+
+		wg.Add(1)
+
+		fmt.Println("-- checking link: " + file.Hyperlinks[index].Url)
+
+		go file.Hyperlinks[index].validate(wg)
+
+	}
+
+	wg.Done()
+
+}
+
+func extractHyperlinksFromDocument(document Document) []Hyperlink {
+
+	// get the content of the file containing the links
 	content := getLinkFileContent(document)
 
 	// find all hyperlinks in the document
@@ -268,25 +330,6 @@ func filterHyperlinks(hyperlinks []Hyperlink) []Hyperlink {
 
 }
 
-func isHyperlinkWorking(link Hyperlink) bool {
-
-	// issue a GET request to the specified url and wait for response
-	// set a timeout of 10 seconds if there is no response
-	_, err := goreq.Request{
-		Uri:     link.Url,
-		Timeout: 10000 * time.Millisecond,
-	}.Do()
-
-	if err != nil {
-		// link was not found
-		return false
-	} else {
-		// link was found
-		return true
-	}
-
-}
-
 func getAbsoluteFilePath(path string) string {
 
 	// check if the path is already absolute
@@ -298,8 +341,9 @@ func getAbsoluteFilePath(path string) string {
 	// try to find the absolute path
 	absolutePath, err := filepath.Abs(path)
 
+	// we return the original path, if there was an error
+	// otherwise we return the absolute path
 	if err != nil {
-		// we return the original path, if there was an error
 		return path
 	} else {
 		return absolutePath
@@ -307,7 +351,16 @@ func getAbsoluteFilePath(path string) string {
 
 }
 
-// create a custom report
+// define a custom report structre
+type Report struct {
+	ResultOfValidation bool
+	Directories        []string
+	Documents          []Document
+	InvalidHyperlinks  []Hyperlink
+	Date               string
+}
+
+// create a custom html report
 func (report *Report) create() bool {
 
 	// open a new file to write our report to
@@ -340,6 +393,7 @@ func (report *Report) create() bool {
 
 }
 
+// open the report in the standard browser
 func (report *Report) open() {
 
 	// open the report in the default browser
@@ -350,6 +404,9 @@ func (report *Report) open() {
 	}
 
 }
+
+// we define the name of our report
+var reportName string = "report"
 
 const reportTemplate = `<html>
 <head>
