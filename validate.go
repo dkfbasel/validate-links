@@ -14,12 +14,14 @@ import (
 
 	"regexp"
 
-	"github.com/franela/goreq"
 	"time"
 
-	"github.com/skratchdot/open-golang/open"
+	"github.com/franela/goreq"
+
 	"html/template"
 	"log"
+
+	"github.com/skratchdot/open-golang/open"
 )
 
 func main() {
@@ -47,7 +49,7 @@ func main() {
 	for index, _ := range documents {
 
 		// initialize document validity with true
-		documents[index].IsValid = true;
+		documents[index].IsValid = true
 
 		for _, link := range documents[index].Hyperlinks {
 
@@ -65,9 +67,9 @@ func main() {
 	// initialize our report structure
 	report := Report{
 		ResultOfValidation: resultOfValidation,
-		Directories: directories,
-		Documents:   documents,
-		Date:        currentTime,
+		Directories:        directories,
+		Documents:          documents,
+		Date:               currentTime,
 	}
 
 	// create an html report with our data
@@ -80,7 +82,7 @@ func main() {
 	elapsed := time.Since(start)
 
 	// inform user that process is finished
-	log.Println("Finished! (it took %s", elapsed)
+	log.Printf("Finished! (it took %s\n", elapsed)
 
 }
 
@@ -410,9 +412,9 @@ var reportName string = "report"
 
 const reportTemplate = `<html>
 <head>
-<title>Hyperlinks in Word Dateien überprüfen</title>
+<title>Check hyperlinks in docx and pptx files</title>
 <meta charset="utf-8">
-<meta name="author" content="Dr. med. Ramon Saccilotto, DKF, Universitätsspital Basel">
+<meta name="author" content="Dr. med. Ramon Saccilotto, DKF, University Hospital Basel, Switzerland">
 
 <style type="text/css">
 
@@ -567,7 +569,7 @@ color: #db2d2d;
 <body>
 <div class="container">
 
-<h1>Untersuchtes Verzeichnis</h1>
+<h1>Directory searched</h1>
 
 <ul class="directories">
 {{range .Directories}}
@@ -575,16 +577,16 @@ color: #db2d2d;
 {{end}}
 </ul>
 
-<h1>Resultat der Link-Validierung</h1>
+<h1>Result of link validation</h1>
 
 
 {{if .ResultOfValidation}}
 <div class="result valid">
-Alle Dateien enthalten nur gültige Links
+All files contain valid links
 </div>
 {{else}}
 <div class="result invalid">
-Leider gibt es Dateien mit ungültigen Links
+There are some files with invalid links
 </div>
 {{end}}
 
@@ -605,8 +607,8 @@ Leider gibt es Dateien mit ungültigen Links
 </div>
 
 <div class="info">
-<p class="time">Ausgeführt am: {{.Date}}</p>
-<p class="author">&copy;&nbsp;2014, Department Klinische Forschung, Universitätsspital Basel</p>
+<p class="time">Link validation conducted on {{.Date}}</p>
+<p class="author">&copy;&nbsp;2014, Department of Clinical Research, University Hospital Basel</p>
 </div>
 </body>
 </html>
